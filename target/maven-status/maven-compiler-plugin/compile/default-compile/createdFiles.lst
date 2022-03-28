@@ -1,0 +1,3 @@
+com/demo/SchemaUtils.class
+com/demo/PubSubToBigQuery.class
+com/demo/PubSubToBigQuery$Options.class
