@@ -63,12 +63,6 @@ public class PubSubToBigQuery {
 
         void setUseSubscription(Boolean value);
 
-        @Description("Is PubSub message JSON format")
-        @Default.Boolean(false)
-        boolean getJsonFormat();
-
-        void setJsonFormat(boolean jsonFormat);
-
         @Description("GCS path to Avro schema file")
         @Validation.Required
         String getSchemaPath();
