@@ -110,8 +110,8 @@ public class PubSubToBigQuery {
         avroRecords.apply(
                 "Write Avro to BigQuery",
                 BigQueryIO.<GenericRecord>write()
-                        .useBeamSchema()
                         .useAvroLogicalTypes()
+                        .useBeamSchema()
                         .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
                         .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND)
                         .to(options.getOutputTableSpec())
