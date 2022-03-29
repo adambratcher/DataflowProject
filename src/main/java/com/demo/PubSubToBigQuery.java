@@ -3,6 +3,9 @@ package com.demo;
 import com.demo.SchemaUtils;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DecoderFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
@@ -15,9 +18,13 @@ import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.Validation;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.schemas.transforms.Convert;
+import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage;
 import org.apache.beam.sdk.values.Row;
+
+import java.io.IOException;
 
 
 public class PubSubToBigQuery {
@@ -78,33 +85,81 @@ public class PubSubToBigQuery {
          * Step #1: Read messages in from Pub/Sub
          * Either from a Subscription or Topic
          */
-        PCollection<PubsubMessage> messages = null;
+        PCollection<String> messages = null;
         if (options.getUseSubscription()) {
             messages =
                     pipeline.apply(
                             "Read PubSub Subscription",
-                            PubsubIO.readMessagesWithAttributes()
+                            PubsubIO.readStrings()
                                     .fromSubscription(options.getInputSubscription())
                     );
         } else {
             messages =
                     pipeline.apply(
                             "Read PubSub Topic",
-                            PubsubIO.readMessagesWithAttributes()
+                            PubsubIO.readStrings()
                                     .fromTopic(options.getInputTopic())
                     );
         }
 
         /*
-         * Step #2: Write Records to BigQuery
+         * Step #2: Transform JSON -> Avro
+         * The purpose of this is to load Avro into BigQuery and
+         * BigQuery Schema can be inferred from Avro
          */
-        WriteResult writeResult = (WriteResult) messages
-                .apply("Convert To Tablerows", Convert.toRows())
-                .apply(
-                "Write to BigQuery", BigQueryIO.writeTableRows()
-                                .useBeamSchema()
-                                .useAvroLogicalTypes());
+        PCollection<GenericRecord> avroRecords = messages.apply("Make Generic Record",
+                MapElements.via(JsonToAvroFn.of(schema)));
+
+        /*
+        * Step #3: Write to BigQuery
+        * BigQuery table is created if it does not already exist using
+        * Avro Schema and using Avro Logical Types
+         */
+        avroRecords.apply(
+                "Write Avro to BigQuery",
+                BigQueryIO.<GenericRecord>write()
+                        .useBeamSchema()
+                        .useAvroLogicalTypes()
+                        .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
+                        .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND)
+                        .to(options.getOutputTableSpec())
+        );
 
         return pipeline.run();
+    }
+
+    /*
+    * Transform JSON Objects to GenericRecord
+     */
+    public static class JsonToAvroFn extends SimpleFunction<String, GenericRecord> {
+
+        private final String schema;
+
+        public JsonToAvroFn(String schema) {
+            this.schema = schema;
+        }
+
+        public static JsonToAvroFn of(String avroSchema) {
+            return new JsonToAvroFn(avroSchema);
+        }
+
+        public static JsonToAvroFn of(Schema avroSchema) {
+            return of(avroSchema.toString());
+        }
+
+        @Override
+        public GenericRecord apply(String avroJson) {
+            try {
+                Schema avroSchema = getSchema();
+                return new GenericDatumReader<GenericRecord>(avroSchema)
+                        .read(null, DecoderFactory.get().jsonDecoder(avroSchema, avroJson));
+            } catch (IOException ioe) {
+                throw new RuntimeException("Error parsing Avro JSON", ioe);
+            }
+        }
+
+        private Schema getSchema() {
+            return new Schema.Parser().parse(schema);
+        }
     }
 }
