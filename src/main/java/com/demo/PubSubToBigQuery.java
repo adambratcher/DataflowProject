@@ -9,7 +9,6 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
-import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -17,12 +16,10 @@ import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.Validation;
 import org.apache.beam.sdk.options.Default;
-import org.apache.beam.sdk.schemas.transforms.Convert;
+import org.apache.beam.sdk.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage;
-import org.apache.beam.sdk.values.Row;
 
 import java.io.IOException;
 
@@ -64,7 +61,7 @@ public class PubSubToBigQuery {
         void setUseSubscription(Boolean value);
 
         @Description("GCS path to Avro schema file")
-        @Validation.Required
+//        @Validation.Required
         String getSchemaPath();
 
         void setSchemaPath(String schemaPath);
@@ -102,7 +99,8 @@ public class PubSubToBigQuery {
          * BigQuery Schema can be inferred from Avro
          */
         PCollection<GenericRecord> avroRecords = messages.apply("Make Generic Record",
-                MapElements.via(JsonToAvroFn.of(schema)));
+                MapElements.via(JsonToAvroFn.of(schema)))
+                .setCoder(AvroUtils.schemaCoder(schema));
 
         /*
         * Step #3: Write to BigQuery
