@@ -1,10 +1,12 @@
 package com.demo;
 
 import com.google.common.io.CharStreams;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.toList;
-import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
+import org.apache.avro.Schema;
+import org.apache.beam.sdk.io.FileSystems;
+import org.apache.beam.sdk.io.fs.MatchResult;
+import org.apache.beam.sdk.io.fs.ResourceId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -12,13 +14,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.List;
 
-import org.apache.avro.Schema;
-import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.io.fs.MatchResult;
-import org.apache.beam.sdk.io.fs.ResourceId;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.stream.Collectors.toList;
+import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
 public class SchemaUtils {
     /* Logger for class */
@@ -41,7 +39,9 @@ public class SchemaUtils {
         }
     }
 
-    /** Handles getting the {@link ReadableByteChannel} for {@code filePath}. */
+    /**
+     * Handles getting the {@link ReadableByteChannel} for {@code filePath}.
+     */
     private static ReadableByteChannel getGcsFileByteChannel(String filePath) {
         try {
             MatchResult result = FileSystems.match(filePath);
