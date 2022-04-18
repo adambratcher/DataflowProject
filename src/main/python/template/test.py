@@ -1,14 +1,14 @@
 import logging
 from argparse import ArgumentParser
 from datetime import datetime
-from io import BytesIO, StringIO
+from io import StringIO
 from json import loads
-from typing import Any, Dict, Hashable, List, Sequence, Tuple
+from typing import Any, Dict, Hashable, List, Sequence, Tuple, Union
 
 from apache_beam import DoFn, Map, Pipeline
 from apache_beam.io import BigQueryDisposition, ReadFromPubSub, WriteToBigQuery
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
-from fastavro import json_reader, parse_schema, reader, schemaless_reader, schemaless_writer
+from fastavro import json_reader, parse_schema, reader
 from google.api_core.exceptions import NotFound
 from google.pubsub_v1 import Encoding, GetSubscriptionRequest, PublisherClient, Schema, SchemaServiceClient, \
     SubscriberClient, \
@@ -30,7 +30,7 @@ raw_schema = {
     ],
 }
 
-avro_type_to_bigquery_type_map: Dict[Tuple[str, str | None], str] = {
+avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
     ('boolean', None): 'BOOLEAN',
     ('int', None): 'INTEGER',
     ('long', None): 'INTEGER',
@@ -75,7 +75,7 @@ def get_bigquery_field_nested_type(nested_field_type: Dict[str, Any]) -> str:
     return get_bigquery_field_type(nested_field_type['type'])
 
 
-def get_bigquery_union_field_type(union_field_type: List[str | Dict[str, Any]]) -> str:
+def get_bigquery_union_field_type(union_field_type: List[Union[str, Dict[str, Any]]]) -> str:
     non_null_union_field_types: List[str | Dict[str, Any]] = \
         [field_type for field_type in union_field_type if field_type != 'null']
 
@@ -85,13 +85,13 @@ def get_bigquery_union_field_type(union_field_type: List[str | Dict[str, Any]]) 
     return get_bigquery_field_type(non_null_union_field_types[0])
 
 
-def get_bigquery_field_type(field_type: str | Dict[str, Any] | List[str | Dict[str, Any]]) -> str:
+def get_bigquery_field_type(field_type: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]) -> str:
     if isinstance(field_type, list):
         return get_bigquery_union_field_type(field_type)
 
     if isinstance(field_type, dict):
-        type_value: str | Dict[str, Any] | List[str | Dict[str, Any]] = field_type.get('type')
-        logical_type_value: str | Dict[str, Any] | List[str | Dict[str, Any]] = field_type.get('logicalType')
+        type_value: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]] = field_type.get('type')
+        logical_type_value: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]] = field_type.get('logicalType')
 
         if isinstance(type_value, Hashable) and isinstance(logical_type_value, Hashable) \
                 and (type_value, logical_type_value) in avro_type_to_bigquery_type_map:
@@ -169,20 +169,20 @@ def deserialize_json_avro(record: str, schema: Dict[str, Any]) -> Dict[str, Any]
     return avro_reader[0]
 
 
-class avroReadWrite:
-    def __init__(self, schema):
-        self.schema = schema
-
-    def deserialize(self, record):
-        bytes_reader = BytesIO(record)
-        dict_record = schemaless_reader(bytes_reader, self.schema)
-        return dict_record
-
-    def serialize(self, record):
-        bytes_writer = BytesIO()
-        schemaless_writer(bytes_writer, self.schema, record)
-        bytes_array = bytes_writer.getvalue()
-        return bytes_array
+# class avroReadWrite:
+#     def __init__(self, schema):
+#         self.schema = schema
+#
+#     def deserialize(self, record):
+#         bytes_reader = BytesIO(record)
+#         dict_record = schemaless_reader(bytes_reader, self.schema)
+#         return dict_record
+#
+#     def serialize(self, record):
+#         bytes_writer = BytesIO()
+#         schemaless_writer(bytes_writer, self.schema, record)
+#         bytes_array = bytes_writer.getvalue()
+#         return bytes_array
 
 
 class JobOptions(PipelineOptions):
@@ -237,13 +237,13 @@ def get_schema(schema_path: str) -> Dict[str, Any]:
     return parse_schema(loads(pubsub_schema.definition))
 
 
-# def get_job_options(argv: Sequence[str] | None) -> JobOptions:
+# def get_job_options(argv: Union[Sequence[str], None]) -> JobOptions:
 #     pipeline_options: PipelineOptions = get_pipeline_options(argv)
 #
 #     return pipeline_options.view_as(JobOptions)
 
 
-def get_pipeline_options(argv: Sequence[str] | None) -> PipelineOptions:
+def get_pipeline_options(argv: Union[Sequence[str], None]) -> PipelineOptions:
     pipeline_options: PipelineOptions = PipelineOptions(ArgumentParser().parse_known_args(argv)[1])
 
     pipeline_options.view_as(SetupOptions).save_main_session = True
@@ -251,7 +251,7 @@ def get_pipeline_options(argv: Sequence[str] | None) -> PipelineOptions:
     return pipeline_options
 
 
-def main(argv: Sequence[str] | None = None):
+def main(argv: Union[Sequence[str], None] = None):
     pipeline_options: PipelineOptions = get_pipeline_options(argv)
     job_options: JobOptions = pipeline_options.view_as(JobOptions)
     project: str = getattr(job_options, 'project')
@@ -265,13 +265,13 @@ def main(argv: Sequence[str] | None = None):
     output_table_id: str = output_table.split('.')[-1]
     output_dataset_id: str = output_table.split('.')[-2]
 
-    print(project)
-    print(input_subscription)
-    print(subscription.topic)
-    print(topic.schema_settings.schema)
-    print(topic.schema_settings.encoding)
-    print(schema)
-    print(get_bigquery_schema(schema))
+    # print(project)
+    # print(input_subscription)
+    # print(subscription.topic)
+    # print(topic.schema_settings.schema)
+    # print(topic.schema_settings.encoding)
+    # print(schema)
+    # print(get_bigquery_schema(schema))
 
     p = Pipeline(options=pipeline_options)
 
