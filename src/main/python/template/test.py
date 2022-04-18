@@ -76,7 +76,7 @@ def get_bigquery_field_nested_type(nested_field_type: Dict[str, Any]) -> str:
 
 
 def get_bigquery_union_field_type(union_field_type: List[Union[str, Dict[str, Any]]]) -> str:
-    non_null_union_field_types: List[str | Dict[str, Any]] = \
+    non_null_union_field_types: List[Union[str, Dict[str, Any]]] = \
         [field_type for field_type in union_field_type if field_type != 'null']
 
     if len(non_null_union_field_types) > 1:
@@ -188,7 +188,7 @@ def deserialize_json_avro(record: str, schema: Dict[str, Any]) -> Dict[str, Any]
 class JobOptions(PipelineOptions):
     @classmethod
     def _add_argparse_args(cls, parser):
-        parser.add_argument('--project', required=True, help='gcp project id')
+        parser.add_argument('--project', default=None, help='gcp project id')
         parser.add_argument('--input_subscription', required=True, help='pubsub input topic')
         parser.add_argument('--output_table', required=True, help='bigquery output table')
         parser.add_argument('--use_avro_logical_types', required=False, default=True, help='bigquery output table')
@@ -265,6 +265,10 @@ def main(argv: Union[Sequence[str], None] = None):
     output_table_id: str = output_table.split('.')[-1]
     output_dataset_id: str = output_table.split('.')[-2]
 
+    logging.info(f"output_table: {output_table}")
+    logging.info(f"output_table_id: {output_table_id}")
+    logging.info(f"output_dataset_id: {output_dataset_id}")
+
     # print(project)
     # print(input_subscription)
     # print(subscription.topic)
@@ -279,7 +283,7 @@ def main(argv: Union[Sequence[str], None] = None):
     logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
     logging.info("-----------------------------------------------------------")
 
-    source = ReadFromPubSub(subscription=input_subscription)
+    source = ReadFromPubSub(subscription=f"projects/{project}/subscriptions/{input_subscription}")
     write_to_bigquery = WriteToBigQuery(
         table=output_table_id,
         dataset=output_dataset_id,
@@ -296,8 +300,7 @@ def main(argv: Union[Sequence[str], None] = None):
             # | "serialize" >> Map(lambda x: avroRW.serialize(x))
             | "write" >> write_to_bigquery
     )
-    result = p.run()
-    result.wait_until_finish()
+    p.run()
 
 
 # | 'Write-CH' >> WriteToBigQuery(
