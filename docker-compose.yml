@@ -1,0 +1,13 @@
+version: '3.1'
+services:
+  dataflow_template:
+    container_name: dataflow_template
+    image: dataflow_template:dev
+    ports:
+      - "9444:8080"
+    volumes:
+      - ./:/app:delegated
+
+      # The below volume stores your container's bash history between container runs
+      - ./.container_bash_history:/root/.bash_history
+    env_file: .env
