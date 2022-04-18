@@ -13,3 +13,9 @@
 # MacOSX Files
 **/.DS_Store/**/*
 **/.DS_Store
+
+# hidden files
+**/.*
+
+# Credentials file format
+**/*.json
