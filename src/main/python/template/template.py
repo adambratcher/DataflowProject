@@ -211,7 +211,7 @@ def deserialize_json_avro(record: str, schema: Dict[str, Any]) -> Dict[str, Any]
 
     avro_reader: reader = json_reader(string_reader, schema)
 
-    return avro_reader[0]
+    return avro_reader.next()
 
 
 # class avroReadWrite:
