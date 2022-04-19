@@ -31,7 +31,7 @@ steps:
       - dataflow
       - 'flex-template'
       - build
-      - $TEMPLATE_PATH
+      - $_TEMPLATE_PATH
       - '--image $_TEMPLATE_IMAGE'
       - '--sdk-language "PYTHON"'
       - '--metadata-file "src/main/python/template/metadata.json"'
