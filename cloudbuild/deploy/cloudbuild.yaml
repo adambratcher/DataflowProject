@@ -7,13 +7,12 @@ steps:
       - '--file=Dockerfile'
       - .
     id: Docker Build
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  - name: 'gcr.io/cloud-builders/docker'
     args:
-      - builds
-      - submit
-      - '--tag ${_TEMPLATE_IMAGE}'
-    id: Gcloud Build
-    entrypoint: gcloud
+      - push
+      - '${_TEMPLATE_IMAGE}'
+    id: Docker Push
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - dataflow
