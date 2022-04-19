@@ -33,7 +33,8 @@ options:
   dynamic_substitutions: true
 substitutions:
   _GCR_HOSTNAME: us.gcr.io
-  _TEMPLATE_IMAGE: '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}'
+  _ARTIFACT_PROJECT_ID: 'gs-development-168620'
+  _TEMPLATE_IMAGE: '${_GCR_HOSTNAME}/${ARTFIACT_PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}'
   _TEMPLATE_BUCKET: 'gs://tf-test-temp'
   _TEMPLATE_PATH: '${_TEMPLATE_BUCKET}/data-pipelines/templates/PubSubAvroToBigQuerySpec.json'
 
