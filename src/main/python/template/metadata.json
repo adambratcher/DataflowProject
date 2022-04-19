@@ -1,0 +1,22 @@
+{
+  "name": "Pub/Sub Avro to BigQuery Streaming Flex Template.",
+  "description": "A streaming flex template to read from Pub/Sub Avro and write to BigQuery.",
+  "parameters": [
+    {
+      "name": "input_subscription",
+      "label": "Input Pub/Sub Subscription ID.",
+      "helpText": "The Subscription ID of the input Pub/Sub subscription to consume from.",
+      "regexes": [
+        "[a-zA-Z][-_.~+%a-zA-Z0-9]{2,}"
+      ]
+    },
+    {
+      "name": "output_table",
+      "label": "Output BigQuery Dataset and Table name.",
+      "helpText": "The name of the BigQuery output dataset and table name separated by a period.",
+      "regexes": [
+        "[^.]+[.][^.]+"
+      ]
+    }
+  ]
+}

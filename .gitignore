@@ -16,6 +16,3 @@
 
 # hidden files
 **/.*
-
-# Credentials file format
-**/*.json

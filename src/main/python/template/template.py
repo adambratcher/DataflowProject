@@ -254,7 +254,7 @@ def get_pipeline_options(argv: Union[Sequence[str], None]) -> PipelineOptions:
     return pipeline_options
 
 
-def main(argv: Union[Sequence[str], None] = None):
+def main():
     dataflow_pipeline_options: DataflowPipelineOptions = get_dataflow_pipeline_options()
     dataflow_pipeline_options_map: Dict[str, Any] = dataflow_pipeline_options.get_all_options()
     project: str = dataflow_pipeline_options_map.get('project')
