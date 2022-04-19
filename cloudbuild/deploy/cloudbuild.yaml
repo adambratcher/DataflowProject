@@ -11,7 +11,7 @@ steps:
     args:
       - builds
       - submit
-      - '--tag $_TEMPLATE_IMAGE'
+      - '--tag ${_TEMPLATE_IMAGE}'
     id: Gcloud Build
     entrypoint: gcloud
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
@@ -20,7 +20,7 @@ steps:
       - 'flex-template'
       - build
       - $_TEMPLATE_PATH
-      - '--image $_TEMPLATE_IMAGE'
+      - '--image ${_TEMPLATE_IMAGE}'
       - '--sdk-language "PYTHON"'
       - '--metadata-file "src/main/python/template/metadata.json"'
       - '--enable-streaming-engine'
