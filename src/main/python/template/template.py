@@ -334,11 +334,9 @@ def main():
     logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
     logging.info("-----------------------------------------------------------")
 
-    source = ReadFromPubSub(subscription=subscription_path)
-
     (
         pipeline
-        | "read" >> source
+        | "read" >> ReadFromPubSub(subscription=subscription_path, with_attributes=True)
         | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
         | "write"
         >> WriteToBigQuery(
