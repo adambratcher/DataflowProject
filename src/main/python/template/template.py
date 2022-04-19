@@ -185,13 +185,22 @@ def deserialize_json_avro(record: str, schema: Dict[str, Any]) -> Dict[str, Any]
 #         return bytes_array
 
 
-class JobOptions(PipelineOptions):
+class DataflowPipelineOptions(PipelineOptions):
     @classmethod
-    def _add_argparse_args(cls, parser):
-        parser.add_argument('--project', default=None, help='gcp project id')
+    def _add_argparse_args(cls, parser: ArgumentParser):
         parser.add_argument('--input_subscription', required=True, help='pubsub input topic')
         parser.add_argument('--output_table', required=True, help='bigquery output table')
-        parser.add_argument('--use_avro_logical_types', required=False, default=True, help='bigquery output table')
+        parser.add_argument('--use_avro_logical_types', required=False, default=True, help='avro logical types')
+
+
+def get_dataflow_pipeline_options() -> DataflowPipelineOptions:
+    parser: ArgumentParser = ArgumentParser()
+
+    pipeline_options = PipelineOptions(parser.parse_known_args()[1])
+
+    pipeline_options.view_as(SetupOptions).save_main_session = True
+
+    return pipeline_options.view_as(DataflowPipelineOptions)
 
 
 class TransformerDoFn(DoFn):
@@ -237,12 +246,6 @@ def get_schema(schema_path: str) -> Dict[str, Any]:
     return parse_schema(loads(pubsub_schema.definition))
 
 
-# def get_job_options(argv: Union[Sequence[str], None]) -> JobOptions:
-#     pipeline_options: PipelineOptions = get_pipeline_options(argv)
-#
-#     return pipeline_options.view_as(JobOptions)
-
-
 def get_pipeline_options(argv: Union[Sequence[str], None]) -> PipelineOptions:
     pipeline_options: PipelineOptions = PipelineOptions(ArgumentParser().parse_known_args(argv)[1])
 
@@ -252,65 +255,39 @@ def get_pipeline_options(argv: Union[Sequence[str], None]) -> PipelineOptions:
 
 
 def main(argv: Union[Sequence[str], None] = None):
-    pipeline_options: PipelineOptions = get_pipeline_options(argv)
-    job_options: JobOptions = pipeline_options.view_as(JobOptions)
-    project: str = getattr(job_options, 'project')
-    input_subscription: str = getattr(job_options, 'input_subscription')
-    subscription: Subscription = get_subscription(SubscriberClient.subscription_path(project, input_subscription))
+    dataflow_pipeline_options: DataflowPipelineOptions = get_dataflow_pipeline_options()
+    dataflow_pipeline_options_map: Dict[str, Any] = dataflow_pipeline_options.get_all_options()
+    project: str = dataflow_pipeline_options_map.get('project')
+    input_subscription: str = dataflow_pipeline_options_map.get('input_subscription')
+    output_table: str = dataflow_pipeline_options_map.get('output_table')
+    subscription_path: str = SubscriberClient.subscription_path(project, input_subscription)
+    subscription: Subscription = get_subscription(subscription_path)
     topic: Topic = get_topic(subscription.topic)
     encoding: Encoding = topic.schema_settings.encoding
     schema: Dict[str, Any] = get_schema(topic.schema_settings.schema)
     bigquery_schema: Dict[str, List[Dict[str, Any]]] = get_bigquery_schema(schema)
-    output_table: str = getattr(job_options, 'output_table')
     output_table_id: str = output_table.split('.')[-1]
     output_dataset_id: str = output_table.split('.')[-2]
-
-    logging.info(f"output_table: {output_table}")
-    logging.info(f"output_table_id: {output_table_id}")
-    logging.info(f"output_dataset_id: {output_dataset_id}")
-
-    # print(project)
-    # print(input_subscription)
-    # print(subscription.topic)
-    # print(topic.schema_settings.schema)
-    # print(topic.schema_settings.encoding)
-    # print(schema)
-    # print(get_bigquery_schema(schema))
-
-    p = Pipeline(options=pipeline_options)
+    pipeline: Pipeline = Pipeline(options=dataflow_pipeline_options)
 
     logging.info("-----------------------------------------------------------")
     logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
     logging.info("-----------------------------------------------------------")
 
-    source = ReadFromPubSub(subscription=f"projects/{project}/subscriptions/{input_subscription}")
-    write_to_bigquery = WriteToBigQuery(
-        table=output_table_id,
-        dataset=output_dataset_id,
-        project=project,
-        schema=bigquery_schema,
-        create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-        write_disposition=BigQueryDisposition.WRITE_APPEND
-    )
-    lines = (
-            p
-            | "read" >> source
-            | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
-            # | "process" >> (beam.ParDo(TransformerDoFn(_schema=schema)))
-            # | "serialize" >> Map(lambda x: avroRW.serialize(x))
-            | "write" >> write_to_bigquery
-    )
-    p.run()
+    source = ReadFromPubSub(subscription=subscription_path)
 
+    (pipeline
+     | "read" >> source
+     | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
+     | "write" >> WriteToBigQuery(table=output_table_id,
+                                  dataset=output_dataset_id,
+                                  project=project,
+                                  schema=bigquery_schema,
+                                  create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                                  write_disposition=BigQueryDisposition.WRITE_APPEND))
 
-# | 'Write-CH' >> WriteToBigQuery(
-#     table=table_id,
-#     dataset=dataset_id,
-#     project=project_id,
-#     schema=table_schema,
-#     create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-#     write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
-# ))
+    pipeline.run()
+
 
 if __name__ == "__main__":
     main()
