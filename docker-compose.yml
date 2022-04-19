@@ -1,8 +1,8 @@
 version: '3.1'
 services:
-  dataflow_template:
-    container_name: dataflow_template
-    image: dataflow_template:dev
+  dataflow_templates:
+    container_name: dataflow_templates
+    image: dataflow_templates:dev
     ports:
       - "9444:8080"
     volumes:

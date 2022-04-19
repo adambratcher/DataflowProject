@@ -37,9 +37,10 @@ COPY src/main/python/ .
 ENV FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE="${WORKDIR}/requirements.txt"
 ENV FLEX_TEMPLATE_PYTHON_PY_FILE="${WORKDIR}/template/template.py"
 ENV FLEX_TEMPLATE_PYTHON_PY_OPTIONS=""
-ENV FLEX_TEMPLATE_PYTHON_EXTRA_PACKAGES="./template/,./utils/"
+ENV FLEX_TEMPLATE_PYTHON_EXTRA_PACKAGES="./template/template.py"
 ENV FLEX_TEMPLATE_PYTHON_SETUP_FILE=""
 
 # Install apache-beam and other dependencies to launch the pipeline
 RUN pip install apache-beam[gcp]
 RUN pip install -U -r ./requirements.txt
+CMD ["/bin/bash"]
