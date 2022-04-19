@@ -1,5 +1,8 @@
-FROM python:3.8.13-slim as python-base
+FROM gcr.io/dataflow-templates-base/python38-template-launcher-base as template-base
 
+ARG WORKDIR=/dataflow/template
+RUN mkdir -p ${WORKDIR}
+WORKDIR ${WORKDIR}
 # Credits to michaeloliverx
 # https://github.com/michaeloliverx/python-poetry-docker-example/blob/master/docker/Dockerfile
 
@@ -17,7 +20,6 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # builder-base is used to build dependencies
-FROM python-base as builder-base
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         curl \
@@ -27,20 +29,17 @@ RUN apt-get update \
 ENV POETRY_VERSION=1.1.13
 RUN curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
 
-WORKDIR $PYSETUP_PATH
-COPY ./poetry.lock ./pyproject.toml ./
-RUN poetry install --no-dev
+COPY poetry.lock pyproject.toml ${WORKDIR}/
+RUN poetry remove apache-beam && poetry export --without-hashes -f requirements.txt --output requirements.txt
+COPY src/main/python/ .
 
-FROM python-base as development
-ENV FASTAPI_ENV=development
+# Do not include `apache-beam` in requirements.txt
+ENV FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE="${WORKDIR}/requirements.txt"
+ENV FLEX_TEMPLATE_PYTHON_PY_FILE="${WORKDIR}/template/template.py"
+ENV FLEX_TEMPLATE_PYTHON_PY_OPTIONS=""
+ENV FLEX_TEMPLATE_PYTHON_EXTRA_PACKAGES="./template/,./utils/"
+ENV FLEX_TEMPLATE_PYTHON_SETUP_FILE=""
 
-# Copying poetry and venv into image
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
-COPY --from=builder-base $PYSETUP_PATH $PYSETUP_PATH
-
-# venv already has runtime deps installed we get a quicker install
-WORKDIR $PYSETUP_PATH
-RUN poetry install
-
-WORKDIR /app
-COPY ./ /app
+# Install apache-beam and other dependencies to launch the pipeline
+RUN pip install apache-beam[gcp]
+RUN pip install -U -r ./requirements.txt
