@@ -6,12 +6,14 @@ steps:
       - '$_TEMPLATE_IMAGE'
       - '--file=Dockerfile'
       - .
-    id: Build
-  - name: gcr.io/cloud-builders/docker
+    id: Docker Build
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
-      - push
-      - '$_TEMPLATE_IMAGE'
-    id: Push
+      - builds
+      - submit
+      - '--tag $_TEMPLATE_IMAGE'
+    id: Gcloud Build
+    entrypoint: gcloud
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - dataflow
@@ -22,6 +24,8 @@ steps:
       - '--sdk-language "PYTHON"'
       - '--metadata-file "src/main/python/template/metadata.json"'
       - '--enable-streaming-engine'
+    entrypoint: gcloud
+    id: Build Template
 
 images:
   - '$_TEMPLATE_IMAGE'
