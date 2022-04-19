@@ -24,7 +24,7 @@ steps:
       - '--enable-streaming-engine'
     entrypoint: gcloud
     id: Build Template
-  timeout: 900s
+timeout: 900s
 images:
   - '$_TEMPLATE_IMAGE'
 options:
