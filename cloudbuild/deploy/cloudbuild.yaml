@@ -7,7 +7,7 @@ steps:
       - '--file=Dockerfile'
       - .
     id: Build
-   - name: gcr.io/cloud-builders/docker
+  - name: gcr.io/cloud-builders/docker
     args:
       - push
       - '$TEMPLATE_IMAGE'
