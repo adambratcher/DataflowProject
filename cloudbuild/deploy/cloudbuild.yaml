@@ -3,14 +3,14 @@ steps:
     args:
       - build
       - '-t'
-      - '$TEMPLATE_IMAGE'
+      - '$_TEMPLATE_IMAGE'
       - '--file=Dockerfile'
       - .
     id: Build
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - '$TEMPLATE_IMAGE'
+      - '$_TEMPLATE_IMAGE'
     id: Push
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
@@ -19,7 +19,7 @@ steps:
       - update
       - $_SERVICE_NAME
       - '--platform=managed'
-      - '%TEMPLATE_IMAGE'
+      - '$_TEMPLATE_IMAGE'
       - >-
         --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
       - '--region=$_DEPLOY_REGION'
@@ -32,20 +32,21 @@ steps:
       - 'flex-template'
       - build
       - $TEMPLATE_PATH
-      - '--image $TEMPLATE_IMAGE'
+      - '--image $_TEMPLATE_IMAGE'
       - '--sdk-language "PYTHON"'
       - '--metadata-file "src/main/python/template/metadata.json"'
       - '--enable-streaming-engine'
 
 images:
-  - '$TEMPLATE_IMAGE'
+  - '$_TEMPLATE_IMAGE'
 options:
   substitutionOption: ALLOW_LOOSE
+  dynamic_substitutions: true
 substitutions:
   _GCR_HOSTNAME: us.gcr.io
-  TEMPLATE_IMAGE: '$_GCR_HOSTNAME/$PROJECT_ID/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA'
-  TEMPLATE_BUCKET: 'gs://tf-test-temp'
-  TEMPLATE_PATH: '$TEMPLATE_BUCKET/data-pipelines/templates/PubSubAvroToBigQuerySpec.json'
+  _TEMPLATE_IMAGE: '$_GCR_HOSTNAME/$PROJECT_ID/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA'
+  _TEMPLATE_BUCKET: 'gs://tf-test-temp'
+  _TEMPLATE_PATH: '$_TEMPLATE_BUCKET/data-pipelines/templates/PubSubAvroToBigQuerySpec.json'
 
 tags:
   - gcp-cloud-build-deploy-cloud-run
