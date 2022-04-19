@@ -14,20 +14,6 @@ steps:
     id: Push
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
-      - run
-      - services
-      - update
-      - $_SERVICE_NAME
-      - '--platform=managed'
-      - '$_TEMPLATE_IMAGE'
-      - >-
-        --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
-      - '--region=$_DEPLOY_REGION'
-      - '--quiet'
-    id: Deploy
-    entrypoint: gcloud
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    args:
       - dataflow
       - 'flex-template'
       - build
