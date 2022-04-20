@@ -2,7 +2,6 @@ import logging
 from argparse import ArgumentParser
 from io import StringIO
 from json import loads
-from types import NoneType
 from typing import Any, Dict, List, Tuple, Union
 
 from apache_beam import Map, Pipeline
@@ -79,7 +78,7 @@ def get_bigquery_field_type(field_type: Union[str, Dict[str, Any], List[Union[st
         type_value: Any = field_type.get("type")
         logical_type_value: Any = field_type.get("logicalType")
 
-        if isinstance(type_value, (str, NoneType)) and isinstance(logical_type_value, (str, NoneType)) \
+        if isinstance(type_value, (str, type(None))) and isinstance(logical_type_value, (str, type(None))) \
                 and (type_value, logical_type_value) in avro_type_to_bigquery_type_map:
             return avro_type_to_bigquery_type_map[(type_value, logical_type_value)]
 
