@@ -2,40 +2,40 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
-      - '-t'
-      - '$_TEMPLATE_IMAGE'
-      - '--file=Dockerfile'
+      - "-t"
+      - "$_TEMPLATE_IMAGE"
+      - "--file=Dockerfile"
       - .
     id: Docker Build
-  - name: 'gcr.io/cloud-builders/docker'
+  - name: "gcr.io/cloud-builders/docker"
     args:
       - push
-      - '${_TEMPLATE_IMAGE}'
+      - "${_TEMPLATE_IMAGE}"
     id: Docker Push
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     args:
       - dataflow
-      - 'flex-template'
+      - "flex-template"
       - build
       - $_TEMPLATE_PATH
-      - '--image ${_TEMPLATE_IMAGE}'
+      - "--image ${_TEMPLATE_IMAGE}"
       - '--sdk-language "PYTHON"'
       - '--metadata-file "src/main/python/template/metadata.json"'
-      - '--enable-streaming-engine'
+      - "--enable-streaming-engine"
     entrypoint: gcloud
     id: Build Template
 timeout: 900s
 images:
-  - '$_TEMPLATE_IMAGE'
+  - "$_TEMPLATE_IMAGE"
 options:
   substitutionOption: ALLOW_LOOSE
   dynamic_substitutions: true
 substitutions:
   _GCR_HOSTNAME: us.gcr.io
-  _ARTIFACT_PROJECT_ID: 'gs-development-168620'
-  _TEMPLATE_IMAGE: '${_GCR_HOSTNAME}/${_ARTIFACT_PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}'
-  _TEMPLATE_BUCKET: 'gs://tf-test-temp'
-  _TEMPLATE_PATH: '${_TEMPLATE_BUCKET}/data-pipelines/templates/PubSubAvroToBigQuerySpec.json'
+  _ARTIFACT_PROJECT_ID: "paper-build"
+  _TEMPLATE_IMAGE: "${_GCR_HOSTNAME}/${_ARTIFACT_PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}"
+  _TEMPLATE_BUCKET: "gs://tf-test-temp"
+  _TEMPLATE_PATH: "${_TEMPLATE_BUCKET}/data-pipelines/templates/PubSubAvroToBigQuerySpec.json"
 
 tags:
   - gcp-cloud-build-deploy-cloud-run
