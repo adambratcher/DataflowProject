@@ -221,8 +221,8 @@ def main():
                                       project=project,
                                       schema=bigquery_schema,
                                       create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                                      write_disposition=BigQueryDisposition.WRITE_APPEND))
-
+                                      write_disposition=BigQueryDisposition.WRITE_APPEND,
+                                      batch_size=50))
 
 if __name__ == "__main__":
     main()
