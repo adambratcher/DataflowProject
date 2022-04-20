@@ -1,4 +1,4 @@
-FROM python:3.8.13-slim as python-base
+FROM python:3.9.11-slim as python-base
 
 # Credits to michaeloliverx
 # https://github.com/michaeloliverx/python-poetry-docker-example/blob/master/docker/Dockerfile
