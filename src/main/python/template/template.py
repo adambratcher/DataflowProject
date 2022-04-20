@@ -5,7 +5,7 @@ from json import loads
 from typing import Any, Dict, List, Tuple, Union
 
 from apache_beam import Map, Pipeline
-from apache_beam.io import BigQueryDisposition, ReadFromPubSub, WriteToBigQuery
+from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteToBigQuery
 from apache_beam.options.pipeline_options import PipelineOptions
 from fastavro import json_reader, parse_schema, reader
 from google.api_core.exceptions import NotFound
@@ -17,19 +17,19 @@ logging = logging.getLogger(__name__)
 
 avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
     ("boolean", None): "BOOLEAN",
-    ("int", None): "INTEGER",
-    ("long", None): "INTEGER",
-    ("float", None): "FLOAT",
-    ("double", None): "FLOAT",
     ("bytes", None): "BYTES",
-    ("string", None): "STRING",
+    ("double", None): "FLOAT",
+    ("float", None): "FLOAT",
     ("int", "date"): "DATE",
     ("int", "time-millis"): "TIME",
+    ("int", None): "INTEGER",
     ("long", "time-micros"): "TIME",
-    ("long", "timestamp-millis"): "TIMESTAMP",
     ("long", "timestamp-micros"): "TIMESTAMP",
-    ("string", "uuid"): "STRING",
+    ("long", "timestamp-millis"): "TIMESTAMP",
+    ("long", None): "INTEGER",
     ("record", None): "RECORD",
+    ("string", "uuid"): "STRING",
+    ("string", None): "STRING",
 }
 
 
@@ -213,15 +213,15 @@ def main():
     logging.info("-----------------------------------------------------------")
 
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
-        _ = (pipeline
-             | "read" >> ReadFromPubSub(subscription=subscription_path, with_attributes=True)
-             | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
-             | "write" >> WriteToBigQuery(table=output_table_id,
-                                          dataset=output_dataset_id,
-                                          project=project,
-                                          schema=bigquery_schema,
-                                          create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                                          write_disposition=BigQueryDisposition.WRITE_APPEND))
+        (pipeline
+         | "read" >> ReadStringsFromPubSub(subscription=subscription_path)
+         | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
+         | "write" >> WriteToBigQuery(table=output_table_id,
+                                      dataset=output_dataset_id,
+                                      project=project,
+                                      schema=bigquery_schema,
+                                      create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                                      write_disposition=BigQueryDisposition.WRITE_APPEND))
 
 
 if __name__ == "__main__":
