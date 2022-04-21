@@ -213,16 +213,17 @@ def main():
     logging.info("-----------------------------------------------------------")
 
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
-        (pipeline
+        messages = (pipeline
          | "read" >> ReadStringsFromPubSub(subscription=subscription_path)
-         | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding))
-         | "write" >> WriteToBigQuery(table=output_table_id,
-                                      dataset=output_dataset_id,
-                                      project=project,
-                                      schema=bigquery_schema,
-                                      create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                                      write_disposition=BigQueryDisposition.WRITE_APPEND,
-                                      batch_size=50))
+         | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding)))
+
+        _ = messages | "write" >> WriteToBigQuery(table=output_table_id,
+                                                  dataset=output_dataset_id,
+                                                  project=project,
+                                                  schema=bigquery_schema,
+                                                  create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                                                  write_disposition=BigQueryDisposition.WRITE_APPEND)
+
 
 if __name__ == "__main__":
     main()
