@@ -19,6 +19,7 @@ avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
     ("boolean", None): "BOOLEAN",
     ("bytes", None): "BYTES",
     ("double", None): "FLOAT",
+    ("enum", None): "STRING",
     ("float", None): "FLOAT",
     ("int", "date"): "DATE",
     ("int", "time-millis"): "TIME",
