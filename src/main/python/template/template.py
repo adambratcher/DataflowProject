@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple, Union
 from apache_beam import Map, Pipeline
 from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteToBigQuery
 from apache_beam.options.pipeline_options import PipelineOptions
-from fastavro import json_reader, parse_schema, reader
+from fastavro import json_reader, json_writer, parse_schema, reader
 from google.api_core.exceptions import NotFound
 from google.pubsub_v1 import Encoding, GetSubscriptionRequest, PublisherClient, Schema, SchemaServiceClient, \
     SubscriberClient, Subscription, Topic
@@ -38,6 +38,45 @@ avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
 
 class SchemaConversionError(Exception):
     pass
+
+
+class AvroService:
+
+    def __init__(self, schema: Dict[str, Any], encoding: Encoding):
+        self.schema: Dict[str, Any] = schema
+        self.encoding: Encoding = encoding
+
+    def deserialize(self, record: str) -> Dict[str, Any]:
+        if self.encoding is Encoding.JSON:
+            return self.deserialize_json(record)
+
+        if self.encoding is Encoding.BINARY:
+            raise NotImplementedError("Avro binary deserialization has not been implemented yet.")
+
+        raise TypeError("No deserialization method is available for this type of encoding.", self.encoding)
+
+    def deserialize_json(self, record: str) -> Dict[str, Any]:
+        string_reader: StringIO = StringIO(record)
+
+        avro_reader: reader = json_reader(string_reader, self.schema)
+
+        return avro_reader.next()
+
+    def serialize(self, record: str) -> bytes:
+        if self.encoding is Encoding.JSON:
+            return self.serialize_json(record)
+
+        if self.encoding is Encoding.BINARY:
+            raise NotImplementedError("Avro binary serialization has not been implemented yet.")
+
+        raise TypeError("No serialization method is available for this type of encoding.", self.encoding)
+
+    def serialize_json(self, record: str) -> bytes:
+        string_writer: StringIO = StringIO()
+
+        json_writer(string_writer, self.schema, record)
+
+        return string_writer.getvalue().encode('utf-8')
 
 
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -152,24 +191,6 @@ def find_next_avro_record_fields(avro_schema: Dict[str, Any]) -> List[Dict[str, 
     return []
 
 
-def deserialize_avro(record: str, schema: Dict[str, Any], encoding: Encoding):
-    if encoding is Encoding.JSON:
-        return deserialize_json_avro(record, schema)
-
-    if encoding is Encoding.BINARY:
-        raise NotImplementedError("Avro binary deserialization has not been implemented yet.")
-
-    raise TypeError("No deserialization method is available for this type of encoding.", encoding)
-
-
-def deserialize_json_avro(record: str, schema: Dict[str, Any]) -> Dict[str, Any]:
-    string_reader: StringIO = StringIO(record)
-
-    avro_reader: reader = json_reader(string_reader, schema)
-
-    return avro_reader.next()
-
-
 class DataflowPipelineOptions(PipelineOptions):
     @classmethod
     def _add_argparse_args(cls, parser: ArgumentParser):
@@ -219,10 +240,9 @@ def main():
     subscription: Subscription = get_subscription(subscription_path)
     topic: Topic = get_topic(subscription.topic)
     encoding: Encoding = topic.schema_settings.encoding
-    schema: Dict[str, Any] = get_schema(topic.schema_settings.schema)
-    bigquery_schema: Dict[str, List[Dict[str, Any]]] = get_bigquery_schema(schema)
-    output_table_id: str = output_table.split(".")[-1]
-    output_dataset_id: str = output_table.split(".")[-2]
+    avro_schema: Dict[str, Any] = get_schema(topic.schema_settings.schema)
+    bigquery_schema: Dict[str, List[Dict[str, Any]]] = get_bigquery_schema(avro_schema)
+    avro_service: AvroService = AvroService(avro_schema, encoding)
 
     logging.info("-----------------------------------------------------------")
     logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
@@ -230,15 +250,13 @@ def main():
 
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
         messages = (pipeline
-         | "read" >> ReadStringsFromPubSub(subscription=subscription_path)
-         | "deserialize" >> Map(lambda x: deserialize_avro(x, schema, encoding)))
-
-        _ = messages | "write" >> WriteToBigQuery(table=output_table_id,
-                                                  dataset=output_dataset_id,
-                                                  project=project,
-                                                  schema=bigquery_schema,
-                                                  create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                                                  write_disposition=BigQueryDisposition.WRITE_APPEND)
+                    | "read" >> ReadStringsFromPubSub(subscription=subscription_path)
+                    | "deserialize" >> Map(lambda x: avro_service.deserialize(x)))
+        messages = messages | "write" >> WriteToBigQuery(table=output_table,
+                                                         project=project,
+                                                         schema=bigquery_schema,
+                                                         create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                                                         write_disposition=BigQueryDisposition.WRITE_APPEND)
 
 
 if __name__ == "__main__":
