@@ -15,6 +15,8 @@ from google.pubsub_v1 import Encoding, GetSubscriptionRequest, PublisherClient, 
 logging.basicConfig(format="%(asctime)s : %(levelname)s : %(name)s : %(message)s", level=logging.INFO)
 logging = logging.getLogger(__name__)
 
+schema_conversion_errors: List[Tuple[str, Any]] = []
+
 avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
     ("boolean", None): "BOOLEAN",
     ("bytes", None): "BYTES",
@@ -34,8 +36,17 @@ avro_type_to_bigquery_type_map: Dict[Tuple[str, Union[str, None]], str] = {
 }
 
 
+class SchemaConversionError(Exception):
+    pass
+
+
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-    return {"fields": get_bigquery_record_field_definitions(avro_schema)}
+    bigquery_record_field_definitions: List[Dict[str, Any]] = get_bigquery_record_field_definitions(avro_schema)
+
+    if schema_conversion_errors:
+        raise SchemaConversionError('Errors found in Avro to BigQuery schema conversion.', schema_conversion_errors)
+
+    return {"fields": bigquery_record_field_definitions}
 
 
 def get_bigquery_field_mode(field: Dict[str, Any]) -> str:
@@ -48,30 +59,34 @@ def get_bigquery_field_mode(field: Dict[str, Any]) -> str:
     return "REQUIRED"
 
 
-def get_bigquery_field_nested_type(nested_field_type: Dict[str, Any]) -> str:
+def get_bigquery_field_nested_type(nested_field_type: Dict[str, Any]) -> Union[str, None]:
     if "type" not in nested_field_type:
-        raise KeyError('The "type" key was not found in nested type field.', nested_field_type)
+        return schema_conversion_errors.append(('The "type" key was not found in nested type field.',
+                                                nested_field_type))
 
     if nested_field_type["type"] == "array":
         if "items" not in nested_field_type:
-            raise KeyError('The "items" key was not found in array type field.', nested_field_type)
+            return schema_conversion_errors.append(('The "items" key was not found in array type field.',
+                                                    nested_field_type))
 
         return get_bigquery_field_type(nested_field_type["items"])
 
     return get_bigquery_field_type(nested_field_type["type"])
 
 
-def get_bigquery_union_field_type(union_field_type: List[Union[str, Dict[str, Any]]]) -> str:
+def get_bigquery_union_field_type(union_field_type: List[Union[str, Dict[str, Any]]]) -> Union[str, None]:
     non_null_union_field_types: List[Union[str, Dict[str, Any]]] = [field_type for field_type in union_field_type
                                                                     if field_type != "null"]
 
     if len(non_null_union_field_types) > 1:
-        raise ValueError("Union types are not supported in BigQuery.", union_field_type)
+        return schema_conversion_errors.append(('Union types are not supported for Avro to BigQuery schema conversion.',
+                                                union_field_type))
 
     return get_bigquery_field_type(non_null_union_field_types[0])
 
 
-def get_bigquery_field_type(field_type: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]) -> str:
+def get_bigquery_field_type(
+        field_type: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]) -> Union[str, None]:
     if isinstance(field_type, list):
         return get_bigquery_union_field_type(field_type)
 
@@ -88,17 +103,17 @@ def get_bigquery_field_type(field_type: Union[str, Dict[str, Any], List[Union[st
     if isinstance(field_type, str) and (field_type, None) in avro_type_to_bigquery_type_map:
         return avro_type_to_bigquery_type_map[(field_type, None)]
 
-    raise TypeError("A BigQuery type could not be resolved for this field.", field_type)
+    return schema_conversion_errors.append(("A BigQuery type could not be resolved for this field.", field_type))
 
 
-def get_bigquery_field_definition(field: Dict[str, Any]) -> Dict[str, Any]:
+def get_bigquery_field_definition(field: Dict[str, Any]) -> Union[Dict[str, Any], None]:
     bigquery_field_definition: Dict[str, Any] = {}
 
     if "name" not in field:
-        raise KeyError('The "name" key was not found in the Avro field definition.', field)
+        return schema_conversion_errors.append(('The "name" key was not found in the Avro field definition.', field))
 
     if "type" not in field:
-        raise KeyError('The "type" key was not found in the Avro field definition.', field)
+        return schema_conversion_errors.append(('The "type" key was not found in the Avro field definition.', field))
 
     bigquery_field_definition["name"] = field["name"]
     bigquery_field_definition["type"] = get_bigquery_field_type(field["type"])
@@ -110,11 +125,11 @@ def get_bigquery_field_definition(field: Dict[str, Any]) -> Dict[str, Any]:
     return bigquery_field_definition
 
 
-def get_bigquery_record_field_definitions(avro_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+def get_bigquery_record_field_definitions(avro_schema: Dict[str, Any]) -> Union[List[Dict[str, Any]], None]:
     next_avro_record_fields: List[Dict[str, Any]] = find_next_avro_record_fields(avro_schema)
 
     if not next_avro_record_fields:
-        raise ValueError("Avro record fields could not be found.", avro_schema)
+        return schema_conversion_errors.append(('Avro record fields could not be found.', avro_schema))
 
     return [get_bigquery_field_definition(field) for field in next_avro_record_fields]
 
