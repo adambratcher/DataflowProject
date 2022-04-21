@@ -1,7 +1,7 @@
 import logging
 from argparse import ArgumentParser
 from io import StringIO
-from json import loads
+from json import dumps, loads
 from typing import Any, Dict, List, Tuple, Union
 
 from apache_beam import Map, Pipeline
@@ -56,7 +56,7 @@ class AvroService:
         raise TypeError("No deserialization method is available for this type of encoding.", self.encoding)
 
     def deserialize_json(self, record: str) -> Dict[str, Any]:
-        string_reader: StringIO = StringIO(record)
+        string_reader: StringIO = StringIO(dumps(record))
 
         avro_reader: reader = json_reader(string_reader, self.schema)
 
