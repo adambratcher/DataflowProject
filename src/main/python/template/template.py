@@ -1,9 +1,10 @@
+import json
 import logging
 from argparse import ArgumentParser
 from io import StringIO
-from json import dumps, loads
 from typing import Any, Dict, List, Tuple, Union
 
+import json5
 from apache_beam import Map, Pipeline
 from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteStringsToPubSub, WriteToBigQuery
 from apache_beam.io.gcp.bigquery_tools import RetryStrategy
@@ -83,11 +84,11 @@ class AvroService:
 
     @staticmethod
     def __strip_json_whitespaces(json_string: str) -> str:
-        return dumps(loads(json_string), separators=(',', ':'))
+        return json.dumps(json5.loads(json_string), separators=(',', ':'))
 
     @staticmethod
     def __convert_to_serializable_object(record: Dict[str, Any]) -> str:
-        return loads(dumps(record, separators=(',', ':')))
+        return json.loads(json.dumps(record, separators=(',', ':')))
 
 
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -239,7 +240,7 @@ def get_schema(schema_path: str) -> Dict[str, Any]:
     except NotFound:
         raise NotFound(f'Schema not found: "{schema_path}".')
 
-    return parse_schema(loads(pubsub_schema.definition))
+    return parse_schema(json.loads(pubsub_schema.definition))
 
 
 def get_deadletter_topic_path(project: str, deadletter_topic: Union[str, None]) -> str:
@@ -280,7 +281,7 @@ def main():
                                                         insert_retry_strategy=RetryStrategy.RETRY_ON_TRANSIENT_ERROR)
 
         (pipeline['FailedRows']
-         | 'Serialize Failed Records' >> Map(lambda x: dumps(x, separators=(',', ':')))
+         | 'Serialize Failed Records' >> Map(lambda x: json.dumps(x, separators=(',', ':')))
          | 'PubSub Deadletter Write' >> WriteStringsToPubSub(topic=deadletter_topic_path))
 
 
