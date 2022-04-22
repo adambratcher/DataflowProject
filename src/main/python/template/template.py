@@ -5,7 +5,7 @@ from json import dumps, loads
 from typing import Any, Dict, List, Tuple, Union
 
 from apache_beam import Map, Pipeline
-from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteStringsToPubSub, WriteToBigQuery
+from apache_beam.io import BigQueryDisposition, ReadFromPubSub, WriteToPubSub, WriteToBigQuery
 from apache_beam.io.gcp.bigquery_tools import RetryStrategy
 from apache_beam.options.pipeline_options import PipelineOptions
 from fastavro import json_reader, json_writer, parse_schema, reader
@@ -77,7 +77,7 @@ class AvroService:
     def __serialize_json(self, record: Dict[str, Any]) -> bytes:
         string_writer: StringIO = StringIO()
 
-        json_writer(string_writer, self.schema, self.__convert_to_serializable_object(record))
+        json_writer(string_writer, self.schema, [record])
 
         return string_writer.getvalue().encode('utf-8')
 
@@ -280,8 +280,8 @@ def main():
                                                         insert_retry_strategy=RetryStrategy.RETRY_ON_TRANSIENT_ERROR)
 
         (pipeline['FailedRows']
-         | 'Serialize Failed Records' >> Map(lambda x: dumps(x, separators=(',', ':')))
-         | 'PubSub Deadletter Write' >> WriteStringsToPubSub(topic=deadletter_topic_path))
+         | 'Serialize Failed Records' >> Map(lambda msg: avro_service.serialize(msg[1]))
+         | 'PubSub Deadletter Write' >> WriteToPubSub(topic=deadletter_topic_path))
 
 
 if __name__ == "__main__":
