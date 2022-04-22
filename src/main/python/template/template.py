@@ -48,15 +48,15 @@ class AvroService:
 
     def deserialize(self, record: str) -> Dict[str, Any]:
         if self.encoding is Encoding.JSON:
-            return self.deserialize_json(record)
+            return self.__deserialize_json(record)
 
         if self.encoding is Encoding.BINARY:
             raise NotImplementedError("Avro binary deserialization has not been implemented yet.")
 
         raise TypeError("No deserialization method is available for this type of encoding.", self.encoding)
 
-    def deserialize_json(self, record: str) -> Dict[str, Any]:
-        string_reader: StringIO = StringIO(dumps(record))
+    def __deserialize_json(self, record: str) -> Dict[str, Any]:
+        string_reader: StringIO = StringIO(self.__strip_json_whitespaces(record))
 
         avro_reader: reader = json_reader(string_reader, self.schema)
 
@@ -64,19 +64,23 @@ class AvroService:
 
     def serialize(self, record: str) -> bytes:
         if self.encoding is Encoding.JSON:
-            return self.serialize_json(record)
+            return self.__serialize_json(record)
 
         if self.encoding is Encoding.BINARY:
             raise NotImplementedError("Avro binary serialization has not been implemented yet.")
 
         raise TypeError("No serialization method is available for this type of encoding.", self.encoding)
 
-    def serialize_json(self, record: str) -> bytes:
+    def __serialize_json(self, record: str) -> bytes:
         string_writer: StringIO = StringIO()
 
         json_writer(string_writer, self.schema, record)
 
         return string_writer.getvalue().encode('utf-8')
+
+    @staticmethod
+    def __strip_json_whitespaces(json_string: str) -> str:
+        return dumps(loads(json_string), separators=(',', ':'))
 
 
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
