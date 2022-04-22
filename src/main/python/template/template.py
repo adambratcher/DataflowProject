@@ -5,7 +5,8 @@ from json import dumps, loads
 from typing import Any, Dict, List, Tuple, Union
 
 from apache_beam import Map, Pipeline
-from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteToBigQuery
+from apache_beam.io import BigQueryDisposition, ReadStringsFromPubSub, WriteStringsToPubSub, WriteToBigQuery
+from apache_beam.io.gcp.bigquery_tools import RetryStrategy
 from apache_beam.options.pipeline_options import PipelineOptions
 from fastavro import json_reader, json_writer, parse_schema, reader
 from google.api_core.exceptions import NotFound
@@ -14,6 +15,8 @@ from google.pubsub_v1 import Encoding, GetSubscriptionRequest, PublisherClient, 
 
 logging.basicConfig(format="%(asctime)s : %(levelname)s : %(name)s : %(message)s", level=logging.INFO)
 logging = logging.getLogger(__name__)
+
+DEFAULT_DEADLETTER_TOPIC: str = 'deadletter-test'
 
 schema_conversion_errors: List[Tuple[str, Any]] = []
 
@@ -62,7 +65,7 @@ class AvroService:
 
         return avro_reader.next()
 
-    def serialize(self, record: str) -> bytes:
+    def serialize(self, record: Dict[str, Any]) -> bytes:
         if self.encoding is Encoding.JSON:
             return self.__serialize_json(record)
 
@@ -71,16 +74,20 @@ class AvroService:
 
         raise TypeError("No serialization method is available for this type of encoding.", self.encoding)
 
-    def __serialize_json(self, record: str) -> bytes:
+    def __serialize_json(self, record: Dict[str, Any]) -> bytes:
         string_writer: StringIO = StringIO()
 
-        json_writer(string_writer, self.schema, record)
+        json_writer(string_writer, self.schema, self.__convert_to_serializable_object(record))
 
         return string_writer.getvalue().encode('utf-8')
 
     @staticmethod
     def __strip_json_whitespaces(json_string: str) -> str:
         return dumps(loads(json_string), separators=(',', ':'))
+
+    @staticmethod
+    def __convert_to_serializable_object(record: Dict[str, Any]) -> str:
+        return loads(dumps(record, separators=(',', ':')))
 
 
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -200,6 +207,7 @@ class DataflowPipelineOptions(PipelineOptions):
     def _add_argparse_args(cls, parser: ArgumentParser):
         parser.add_argument("--input_subscription", required=True, help="pubsub input topic")
         parser.add_argument("--output_table", required=True, help="bigquery output table")
+        parser.add_argument("--deadletter_topic", required=False, help="pubsub deadletter topic")
 
 
 def get_dataflow_pipeline_options() -> DataflowPipelineOptions:
@@ -234,12 +242,20 @@ def get_schema(schema_path: str) -> Dict[str, Any]:
     return parse_schema(loads(pubsub_schema.definition))
 
 
+def get_deadletter_topic_path(project: str, deadletter_topic: Union[str, None]) -> str:
+    if not deadletter_topic:
+        deadletter_topic = DEFAULT_DEADLETTER_TOPIC
+
+    return PublisherClient.topic_path(project, deadletter_topic)
+
+
 def main():
     dataflow_pipeline_options: DataflowPipelineOptions = get_dataflow_pipeline_options()
     dataflow_pipeline_options_map: Dict[str, Any] = dataflow_pipeline_options.get_all_options()
     project: str = dataflow_pipeline_options_map.get("project")
     input_subscription: str = dataflow_pipeline_options_map.get("input_subscription")
     output_table: str = dataflow_pipeline_options_map.get("output_table")
+    deadletter_topic: str = dataflow_pipeline_options_map.get("deadletter_topic")
     subscription_path: str = SubscriberClient.subscription_path(project, input_subscription)
     subscription: Subscription = get_subscription(subscription_path)
     topic: Topic = get_topic(subscription.topic)
@@ -247,20 +263,25 @@ def main():
     avro_schema: Dict[str, Any] = get_schema(topic.schema_settings.schema)
     bigquery_schema: Dict[str, List[Dict[str, Any]]] = get_bigquery_schema(avro_schema)
     avro_service: AvroService = AvroService(avro_schema, encoding)
+    deadletter_topic_path: str = get_deadletter_topic_path(project, deadletter_topic)
 
     logging.info("-----------------------------------------------------------")
     logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
     logging.info("-----------------------------------------------------------")
 
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
-        messages = (pipeline
-                    | "read" >> ReadStringsFromPubSub(subscription=subscription_path)
-                    | "deserialize" >> Map(lambda x: avro_service.deserialize(x)))
-        messages = messages | "write" >> WriteToBigQuery(table=output_table,
-                                                         project=project,
-                                                         schema=bigquery_schema,
-                                                         create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                                                         write_disposition=BigQueryDisposition.WRITE_APPEND)
+        pipeline |= 'PubSub Read' >> ReadStringsFromPubSub(subscription=subscription_path)
+        pipeline |= 'Avro Deserialize' >> Map(avro_service.deserialize)
+        pipeline |= 'BigQuery Write' >> WriteToBigQuery(table=output_table,
+                                                        project=project,
+                                                        schema=bigquery_schema,
+                                                        create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                                                        write_disposition=BigQueryDisposition.WRITE_APPEND,
+                                                        insert_retry_strategy=RetryStrategy.RETRY_ON_TRANSIENT_ERROR)
+
+        (pipeline['FailedRows']
+         | 'Serialize Failed Records' >> Map(lambda x: dumps(x, separators=(',', ':')))
+         | 'PubSub Deadletter Write' >> WriteStringsToPubSub(topic=deadletter_topic_path))
 
 
 if __name__ == "__main__":
