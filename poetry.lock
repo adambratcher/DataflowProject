@@ -768,7 +768,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.9"
-content-hash = "2c423ab48f0a97e69368190ecb85fa96720b4fef01df5570c61365aa03d2f9cd"
+content-hash = "e0c546c98ff953a314d9928726a5617bb106f1c2d666f96479df62b698875ded"
 
 [metadata.files]
 apache-beam = [

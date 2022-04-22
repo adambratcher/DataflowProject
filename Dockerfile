@@ -26,7 +26,7 @@ RUN apt-get update \
         build-essential
 
 # Install Poetry
-ENV POETRY_VERSION=1.1.13
+ENV POETRY_VERSION=1.1.13 BEAM_SDK_VERSION=2.38.0
 RUN curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
 
 COPY poetry.lock pyproject.toml ${WORKDIR}/
@@ -41,6 +41,6 @@ ENV FLEX_TEMPLATE_PYTHON_EXTRA_PACKAGES=""
 ENV FLEX_TEMPLATE_PYTHON_SETUP_FILE=""
 
 # Install apache-beam and other dependencies to launch the pipeline
-RUN pip install apache-beam[gcp]
+RUN pip install apache-beam[gcp]~=${BEAM_SDK_VERSION}
 RUN pip install -U -r ./requirements.txt
 CMD ["/bin/bash"]
