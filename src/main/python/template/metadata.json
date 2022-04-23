@@ -12,10 +12,18 @@
     },
     {
       "name": "output_table",
-      "label": "Output BigQuery Dataset and Table name.",
+      "label": "Output BigQuery Dataset and Table Name.",
       "helpText": "The name of the BigQuery output dataset and table name separated by a period.",
       "regexes": [
         "[^.]+[.][^.]+"
+      ]
+    },
+    {
+      "name": "dead_letter_topic",
+      "label": "Dead Letter Topic ID.",
+      "helpText": "The Topic ID of the output topic to write records to that failed during processing.",
+      "regexes": [
+        "[a-zA-Z][-_.~+%a-zA-Z0-9]{2,}"
       ]
     }
   ]
