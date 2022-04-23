@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple, Union
 
 import json5
 from apache_beam import Map, Pipeline
-from apache_beam.io import BigQueryDisposition, ReadFromPubSub, WriteToPubSub, WriteToBigQuery
+from apache_beam.io import BigQueryDisposition, ReadFromPubSub, WriteToBigQuery, WriteToPubSub
 from apache_beam.io.gcp.bigquery_tools import RetryStrategy
 from apache_beam.options.pipeline_options import PipelineOptions
 from fastavro import json_reader, json_writer, parse_schema, reader
@@ -17,7 +17,7 @@ from google.pubsub_v1 import Encoding, GetSubscriptionRequest, PublisherClient, 
 logging.basicConfig(format="%(asctime)s : %(levelname)s : %(name)s : %(message)s", level=logging.INFO)
 logging = logging.getLogger(__name__)
 
-DEFAULT_DEADLETTER_TOPIC: str = 'deadletter-test'
+DEFAULT_DEAD_LETTER_TOPIC: str = 'deadletter-test'
 
 schema_conversion_errors: List[Tuple[str, Any]] = []
 
@@ -50,7 +50,7 @@ class AvroService:
         self.schema: Dict[str, Any] = schema
         self.encoding: Encoding = encoding
 
-    def deserialize(self, record: str) -> Dict[str, Any]:
+    def deserialize(self, record: [str, bytes]) -> Dict[str, Any]:
         if self.encoding is Encoding.JSON:
             return self.__deserialize_json(record)
 
@@ -66,7 +66,7 @@ class AvroService:
 
         return avro_reader.next()
 
-    def serialize(self, record: Dict[str, Any]) -> bytes:
+    def serialize(self, record: Dict[str, Any]) -> [str, bytes]:
         if self.encoding is Encoding.JSON:
             return self.__serialize_json(record)
 
@@ -75,20 +75,16 @@ class AvroService:
 
         raise TypeError("No serialization method is available for this type of encoding.", self.encoding)
 
-    def __serialize_json(self, record: Dict[str, Any]) -> bytes:
+    def __serialize_json(self, record: Dict[str, Any]) -> str:
         string_writer: StringIO = StringIO()
 
         json_writer(string_writer, self.schema, [record])
 
-        return string_writer.getvalue().encode('utf-8')
+        return string_writer.getvalue()
 
     @staticmethod
     def __strip_json_whitespaces(json_string: str) -> str:
         return json.dumps(json5.loads(json_string), separators=(',', ':'))
-
-    @staticmethod
-    def __convert_to_serializable_object(record: Dict[str, Any]) -> str:
-        return json.loads(json.dumps(record, separators=(',', ':')))
 
 
 def get_bigquery_schema(avro_schema: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -243,20 +239,26 @@ def get_schema(schema_path: str) -> Dict[str, Any]:
     return parse_schema(json.loads(pubsub_schema.definition))
 
 
-def get_deadletter_topic_path(project: str, deadletter_topic: Union[str, None]) -> str:
-    if not deadletter_topic:
-        deadletter_topic = DEFAULT_DEADLETTER_TOPIC
+def get_dead_letter_topic_path(project: str, dead_letter_topic: Union[str, None]) -> str:
+    if not dead_letter_topic:
+        dead_letter_topic = DEFAULT_DEAD_LETTER_TOPIC
 
-    return PublisherClient.topic_path(project, deadletter_topic)
+    return PublisherClient.topic_path(project, dead_letter_topic)
+
+
+def deserialize_record(record: bytes, avro_service: AvroService) -> Dict[str, Any]:
+    return avro_service.deserialize(record.decode('utf-8'))
+
+
 
 
 def main():
     dataflow_pipeline_options: DataflowPipelineOptions = get_dataflow_pipeline_options()
     dataflow_pipeline_options_map: Dict[str, Any] = dataflow_pipeline_options.get_all_options()
-    project: str = dataflow_pipeline_options_map.get("project")
-    input_subscription: str = dataflow_pipeline_options_map.get("input_subscription")
-    output_table: str = dataflow_pipeline_options_map.get("output_table")
-    deadletter_topic: str = dataflow_pipeline_options_map.get("deadletter_topic")
+    project: str = dataflow_pipeline_options_map.get('project')
+    input_subscription: str = dataflow_pipeline_options_map.get('input_subscription')
+    output_table: str = dataflow_pipeline_options_map.get('output_table')
+    dead_letter_topic: str = dataflow_pipeline_options_map.get('dead_letter_topic')
     subscription_path: str = SubscriberClient.subscription_path(project, input_subscription)
     subscription: Subscription = get_subscription(subscription_path)
     topic: Topic = get_topic(subscription.topic)
@@ -264,16 +266,16 @@ def main():
     avro_schema: Dict[str, Any] = get_schema(topic.schema_settings.schema)
     bigquery_schema: Dict[str, List[Dict[str, Any]]] = get_bigquery_schema(avro_schema)
     avro_service: AvroService = AvroService(avro_schema, encoding)
-    deadletter_topic_path: str = get_deadletter_topic_path(project, deadletter_topic)
+    dead_letter_topic_path: str = get_dead_letter_topic_path(project, dead_letter_topic)
 
-    logging.info("-----------------------------------------------------------")
-    logging.info("          Dataflow AVRO Streaming with Pub/Sub             ")
-    logging.info("-----------------------------------------------------------")
+    logging.info('-----------------------------------------------------------')
+    logging.info('          Dataflow AVRO Streaming with Pub/Sub             ')
+    logging.info('-----------------------------------------------------------')
 
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
         pipeline |= 'PubSub Read' >> ReadFromPubSub(subscription=subscription_path)
         pipeline |= 'UTF-8 Bytes To String' >> Map(lambda msg: msg.decode("utf-8"))
-        pipeline |= 'Avro Deserialize' >> Map(avro_service.deserialize)
+        pipeline |= 'Records Deserialize' >> Map(lambda record: deserialize_record(record, avro_service))
         pipeline |= 'BigQuery Write' >> WriteToBigQuery(table=output_table,
                                                         project=project,
                                                         schema=bigquery_schema,
@@ -283,7 +285,8 @@ def main():
 
         (pipeline['FailedRows']
          | 'Serialize Failed Records' >> Map(lambda msg: avro_service.serialize(msg[1]))
-         | 'PubSub Deadletter Write' >> WriteToPubSub(topic=deadletter_topic_path))
+         | 'String To UTF-8 Bytes' >> Map(lambda msg: msg.encode("utf-8"))
+         | 'PubSub Dead Letter Write' >> WriteToPubSub(topic=dead_letter_topic_path))
 
 
 if __name__ == "__main__":
