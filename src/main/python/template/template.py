@@ -229,7 +229,7 @@ class AvroToBigQuerySchemaConverter:
         if "null" in field["type"]:
             return "NULLABLE"
 
-        if field["type"] == "array":
+        if "type" in field["type"] and field["type"]["type"] == "array":
             return "REPEATED"
 
         return "REQUIRED"
