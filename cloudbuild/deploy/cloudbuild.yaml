@@ -36,9 +36,10 @@ options:
 substitutions:
   _GCR_HOSTNAME: us.gcr.io
   _ARTIFACT_PROJECT_ID: "gs-development-168620"
+  _DATETIME: $(date +%F_%T)
   _TEMPLATE_IMAGE: "${_GCR_HOSTNAME}/${_ARTIFACT_PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}"
   _TEMPLATE_BUCKET: "gs://custom_dataflow_templates/cloudbuild"
-  _TEMPLATE_PATH: "${_TEMPLATE_BUCKET}/PubSub_Avro_To_BigQuery"
+  _TEMPLATE_PATH: "${_TEMPLATE_BUCKET}/${_DATETIME}/PubSub_Avro_To_BigQuery"
 
 tags:
   - gcp-cloud-build-deploy-cloud-run
