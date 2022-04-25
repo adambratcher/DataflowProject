@@ -18,7 +18,7 @@ steps:
       - "flex-template"
       - build
       - '-c'
-      - "echo ${_TEMPLATE_BUCKET}/$(cat _TIMESTAMP)/${_TEMPLATE_NAME}"
+      - '${_TEMPLATE_BUCKET}/$(cat _TIMESTAMP)/${_TEMPLATE_NAME}'
       - "--image"
       - "${_TEMPLATE_IMAGE}"
       - "--sdk-language"
