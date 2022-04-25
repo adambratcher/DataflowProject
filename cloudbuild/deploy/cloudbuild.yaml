@@ -15,12 +15,7 @@ steps:
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - gcloud dataflow flex-template build \
-        ${_TEMPLATE_BUCKET}/${_TEMPLATE_NAME} \
-        --image $${_TEMPLATE_IMAGE} \
-        --sdk-language PYTHON \
-        --metadata-file src/main/python/template/metadata.json \
-        --enable-streaming-engine
+      - gcloud dataflow flex-template build ${_TEMPLATE_BUCKET}/${_TEMPLATE_NAME} --image $${_TEMPLATE_IMAGE} --sdk-language PYTHON --metadata-file src/main/python/template/metadata.json --enable-streaming-engine
     entrypoint: gcloud
     id: Build Template
 timeout: 900s
