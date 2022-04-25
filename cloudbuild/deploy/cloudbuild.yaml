@@ -12,12 +12,14 @@ steps:
       - push
       - "${_TEMPLATE_IMAGE}"
     id: Docker Push
+  - name: "ubuntu"
+    args: ["bash", "-c", "date -u +%F_%T > _TIMESTAMP"]
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     args:
       - dataflow
       - "flex-template"
       - build
-      - $_TEMPLATE_PATH
+      - "${_TEMPLATE_BUCKET}/$(cat _TIMESTAMP)/${_TEMPLATE_NAME}"
       - "--image"
       - "${_TEMPLATE_IMAGE}"
       - "--sdk-language"
@@ -39,7 +41,7 @@ substitutions:
   _DATETIME: $(date +%F_%T)
   _TEMPLATE_IMAGE: "${_GCR_HOSTNAME}/${_ARTIFACT_PROJECT_ID}/${REPO_NAME}/dataflow-flex-template:${COMMIT_SHA}"
   _TEMPLATE_BUCKET: "gs://custom_dataflow_templates/cloudbuild"
-  _TEMPLATE_PATH: "${_TEMPLATE_BUCKET}/${_DATETIME}/PubSub_Avro_To_BigQuery"
+  _TEMPLATE_NAME: "PubSub_Avro_To_BigQuery"
 
 tags:
   - gcp-cloud-build-deploy-cloud-run
