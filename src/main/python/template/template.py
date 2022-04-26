@@ -228,14 +228,14 @@ class AvroToBigQuerySchemaConverter:
         if "null" in field["type"]:
             return "NULLABLE"
 
-        if "type" in field["type"]:
-            if field["type"]["type"] == "array":
-                return "REPEATED"
+        if isinstance(field["type"], list) and "null" in field["type"] \
+                and any(isinstance(field_type, dict) and "type" in field_type and field_type["type"] == 'array'
+                        for field_type in field['type']):
+            return self.__schema_conversion_errors.append((
+                "Fields that are both NULLABLE and REPEATED cannot be defined in BigQuery.", field))
 
-            if isinstance(field["type"]["type"], list) and "null" in field["type"]["type"] \
-                    and "array" in field["type"]["type"]:
-                return self.__schema_conversion_errors.append((
-                    "Fields that are both NULLABLE and REPEATED cannot be defined in BigQuery.", field))
+        if "type" in field["type"] and field["type"]["type"] == "array":
+            return "REPEATED"
 
         return "REQUIRED"
 
@@ -338,17 +338,6 @@ def serialize_failed_record(record: Tuple[str, Dict[str, Any]], avro_service: Av
     ).encode('utf-8')
 
 
-def test_array_handling(record: Dict[str, Any]) -> Dict[str, Any]:
-    for field_name, value in record.items():
-        if isinstance(value, list):
-            record[field_name] = [element for element in value if element is not None]
-
-        if isinstance(value, dict):
-            record[field_name] = test_array_handling(record[field_name])
-
-    return record
-
-
 def main():
     dataflow_pipeline_options: DataflowPipelineOptions = get_dataflow_pipeline_options()
     dataflow_pipeline_options_map: Dict[str, Any] = dataflow_pipeline_options.get_all_options()
@@ -373,7 +362,6 @@ def main():
     with Pipeline(options=dataflow_pipeline_options) as pipeline:
         pipeline |= 'PubSub Read' >> ReadFromPubSub(subscription=pub_sub_pipeline.subscription.name)
         pipeline |= 'Records Deserialize' >> Map(lambda record: deserialize_record(record, avro_service))
-        pipeline |= 'Test Array Handling' >> Map(lambda record: test_array_handling(record))
         pipeline |= 'BigQuery Write' >> WriteToBigQuery(table=output_table,
                                                         project=project,
                                                         schema=bigquery_schema,
