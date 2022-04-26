@@ -328,7 +328,7 @@ def serialize_failed_record(record: Tuple[str, Dict[str, Any]], avro_service: Av
     return dead_letter_avro_service.serialize(
         {'dataflow_job_name': dataflow_job_name,
          'error_datetime': datetime.now(),
-         'error_message': None,
+         'error_message': "Write To BigQuery Failure",
          'message': avro_service.serialize(record[1])}
     ).encode('utf-8')
 
