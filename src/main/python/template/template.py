@@ -225,14 +225,14 @@ class AvroToBigQuerySchemaConverter:
         return bigquery_field_definition
 
     def __get_field_mode(self, field: Dict[str, Any]) -> Union[str, None]:
-        if "null" in field["type"]:
-            return "NULLABLE"
-
         if isinstance(field["type"], list) and "null" in field["type"] \
                 and any(isinstance(field_type, dict) and "type" in field_type and field_type["type"] == 'array'
                         for field_type in field['type']):
             return self.__schema_conversion_errors.append((
                 "Fields that are both NULLABLE and REPEATED cannot be defined in BigQuery.", field))
+
+        if "null" in field["type"]:
+            return "NULLABLE"
 
         if "type" in field["type"] and field["type"]["type"] == "array":
             return "REPEATED"
