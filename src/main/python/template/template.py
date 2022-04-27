@@ -249,6 +249,10 @@ class AvroToBigQuerySchemaConverter:
                 return self.__schema_conversion_errors.append(('The "items" key was not found in array type field.',
                                                                nested_field_type))
 
+            if isinstance(nested_field_type["items"], list) and "null" in nested_field_type["items"]:
+                return self.__schema_conversion_errors.append((
+                    "Fields that are REPEATED do not support NULL values in BigQuery.", nested_field_type))
+
             return self.__get_field_type(nested_field_type["items"])
 
         return self.__get_field_type(nested_field_type["type"])
